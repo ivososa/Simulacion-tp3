@@ -57,18 +57,27 @@ def calcular_red(a, b, c, d, e, f):
     }
 
 
-def tiempo_minimo_teorico(p):
+def valores_minimos(p):
     """
-    "Simulacro" con el valor MÍNIMO posible de cada actividad:
+    Valor MÍNIMO posible de cada actividad según su distribución:
       constante -> su valor | discreta -> menor valor de la tabla
       uniforme  -> a        | exponencial -> 0
+    """
+    return {
+        "A": p["A"],
+        "B": min(fila["valor"] for fila in p["B"]),
+        "C": p["C"],
+        "D": p["D"]["a"],
+        "E": 0,
+        "F": min(fila["valor"] for fila in p["F"]),
+    }
+
+
+def tiempo_minimo_teorico(p):
+    """
+    "Simulacro" con el valor mínimo de cada actividad:
     Tmin = max(Amin + Bmin, Cmin + Dmin + Emin) + Fmin
     Con los valores por defecto: max(15 + 20, 5 + 5 + 0) + 15 = 50 min.
     """
-    a_min = p["A"]
-    b_min = min(fila["valor"] for fila in p["B"])
-    c_min = p["C"]
-    d_min = p["D"]["a"]
-    e_min = 0
-    f_min = min(fila["valor"] for fila in p["F"])
-    return calcular_red(a_min, b_min, c_min, d_min, e_min, f_min)["T"]
+    m = valores_minimos(p)
+    return calcular_red(m["A"], m["B"], m["C"], m["D"], m["E"], m["F"])["T"]

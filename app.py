@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from generador import CONVERSIONES
-from modelo import ACTIVIDADES, calcular_red
+from modelo import ACTIVIDADES, calcular_red, valores_minimos
 from parametros import VARIABLES_ALEATORIAS, parametros_por_defecto, validar
 from simulacion import simular, traza_primeras_iteraciones
 
@@ -153,7 +153,16 @@ def formatear(valor):
     return str(valor)
 
 
-def mostrar_vector(filas, p, altura=520):
+def colores_encabezado():
+    """(fondo, letra) del encabezado según el tema activo; se fijan los dos para que siempre contrasten."""
+    tema = getattr(getattr(st.context, "theme", None), "type", None)
+    if tema == "dark":
+        return "#262730", "#fafafa"
+    return "#f0f2f6", "#31333f"
+
+
+def mostrar_vector(filas, p, altura="75vh"):
+    """altura: alto máximo de ESTA tabla (75vh = 75 % del alto de la pantalla); si hay más filas, scroll."""
     cols = columnas_vector(p)
     datos = []
     n_anterior = None
@@ -165,16 +174,17 @@ def mostrar_vector(filas, p, altura=520):
         n_anterior = fila["n"]
     df = pd.DataFrame(datos, columns=pd.MultiIndex.from_tuples([(g, s) for g, s, _ in cols]))
     html = df.to_html(index=False, classes="vector", border=0)
+    fondo, letra = colores_encabezado()
     st.markdown(f"""
 <style>
-.contenedor-vector {{ overflow: auto; max-height: {altura}px; border: 1px solid rgba(128,128,128,.35); border-radius: 6px; }}
+.contenedor-vector {{ overflow: auto; border: 1px solid rgba(128,128,128,.35); border-radius: 6px; }}
 table.vector {{ border-collapse: collapse; font-size: 12px; white-space: nowrap; }}
 table.vector th, table.vector td {{ padding: 3px 8px; border: 1px solid rgba(128,128,128,.25); text-align: right; }}
-table.vector thead th {{ position: sticky; background: var(--background-color, #f0f2f6); text-align: center; }}
+table.vector thead th {{ position: sticky; background: {fondo}; color: {letra}; text-align: center; }}
 table.vector thead tr:first-child th {{ top: 0; }}
 table.vector thead tr:nth-child(2) th {{ top: 24px; }}
 </style>
-<div class="contenedor-vector">{html}</div>""", unsafe_allow_html=True)
+<div class="contenedor-vector" style="max-height: {altura};">{html}</div>""", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +282,175 @@ def mostrar_datos_fijos():
 
 
 # ---------------------------------------------------------------------------
+# Respuestas a la consigna (resumen visual al final de la página)
+# ---------------------------------------------------------------------------
+
+COLOR_NEUTRO = "#9a9a93"   # barras que no son protagonistas
+
+
+def encabezado_tarjeta(numero, titulo, pregunta):
+    st.markdown(f"##### {numero} · {titulo}")
+    st.caption(pregunta)
+
+
+def gantt_simulacro_minimo(p):
+    """Cronograma de la red con el valor mínimo de cada actividad."""
+    m = valores_minimos(p)
+    red = calcular_red(m["A"], m["B"], m["C"], m["D"], m["E"], m["F"])
+    barras = pd.DataFrame([
+        {"Actividad": "A", "Rama": "Rama 1 (producto)", "Inicio": 0, "Fin": red["fin_a"], "Dur": m["A"]},
+        {"Actividad": "B", "Rama": "Rama 1 (producto)", "Inicio": red["fin_a"], "Fin": red["fin_b"], "Dur": m["B"]},
+        {"Actividad": "C", "Rama": "Rama 2 (empaque)", "Inicio": 0, "Fin": red["fin_c"], "Dur": m["C"]},
+        {"Actividad": "D", "Rama": "Rama 2 (empaque)", "Inicio": red["fin_c"], "Fin": red["fin_d"], "Dur": m["D"]},
+        {"Actividad": "E", "Rama": "Rama 2 (empaque)", "Inicio": red["fin_d"], "Fin": red["fin_e"], "Dur": m["E"]},
+        {"Actividad": "F", "Rama": "Convergencia (F)", "Inicio": red["inicio_f"], "Fin": red["fin_f"], "Dur": m["F"]},
+    ])
+    color = alt.Color("Rama:N", scale=alt.Scale(
+        domain=["Rama 1 (producto)", "Rama 2 (empaque)", "Convergencia (F)"],
+        range=[COLOR_SERIE_1, COLOR_SERIE_2, "#1baf7a"]), legend=alt.Legend(orient="bottom", title=None))
+    base = alt.Chart(barras).encode(y=alt.Y("Actividad:N", sort=None, title=None))
+    rectangulos = base.mark_bar(cornerRadius=4, height=16).encode(
+        x=alt.X("Inicio:Q", title="Minutos"), x2="Fin:Q", color=color,
+        tooltip=["Actividad", "Rama", alt.Tooltip("Inicio:Q", format=".2f"),
+                 alt.Tooltip("Fin:Q", format=".2f"), alt.Tooltip("Dur:Q", title="Duración", format=".2f")])
+    etiquetas = base.mark_text(align="left", dx=4).encode(x="Fin:Q", text=alt.Text("Dur:Q", format=".4g"))
+    return (rectangulos + etiquetas).properties(height=220), red, m
+
+
+def barras_horizontales(df, campo_valor, formato, color, titulo_x, dominio=None):
+    x = alt.X(f"{campo_valor}:Q", title=titulo_x,
+              scale=alt.Scale(domain=dominio) if dominio else alt.Undefined)
+    base = alt.Chart(df).encode(y=alt.Y("Nombre:N", sort=None, title=None), x=x)
+    barras = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=18).encode(
+        color=color, tooltip=["Nombre", alt.Tooltip(f"{campo_valor}:Q", format=formato)])
+    etiquetas = base.mark_text(align="left", dx=4).encode(text=alt.Text(f"{campo_valor}:Q", format=formato))
+    return barras + etiquetas
+
+
+def mostrar_respuestas(resultado, p):
+    fila = resultado["ultima_fila"]
+    n = fila["n"]
+
+    # --- 1 y 2 ---
+    col1, col2 = st.columns(2)
+    with col1.container(border=True):
+        encabezado_tarjeta(1, "Tiempo mínimo del proyecto",
+                           "Simulacro con el valor mínimo de cada actividad: ¿en cuánto podría haberse hecho?")
+        grafico, red, m = gantt_simulacro_minimo(p)
+        st.metric("Tiempo mínimo teórico", f"{resultado['t_min_teorico']:.4f} min",
+                  help="Constante → su valor · discreta → menor valor · uniforme → a · exponencial → 0")
+        st.markdown(f"max(A + B, C + D + E) + F = max({m['A']:g} + {m['B']:g}, "
+                    f"{m['C']:g} + {m['D']:g} + {m['E']:g}) + {m['F']:g} = **{red['T']:g} min**")
+        st.altair_chart(grafico, width="stretch")
+        st.caption(f"Mínimo observado en la simulación: {fila['t_min_obs']:.4f} min · "
+                   f"máximo observado: {fila['t_max_obs']:.4f} min.")
+
+    with col2.container(border=True):
+        encabezado_tarjeta(2, "Duración de cada proceso",
+                           f"Duración promedio de cada actividad y de cada ruta hasta la iteración {n}.")
+        datos = [{"Nombre": a, "Minutos": fila["prom_" + a], "Tipo": "Actividad"} for a in ACTIVIDADES]
+        datos += [{"Nombre": "Ruta 1 (A+B+F)", "Minutos": fila["prom_ruta1"], "Tipo": "Ruta / total"},
+                  {"Nombre": "Ruta 2 (C+D+E+F)", "Minutos": fila["prom_ruta2"], "Tipo": "Ruta / total"},
+                  {"Nombre": "Proyecto T", "Minutos": fila["prom_T"], "Tipo": "Ruta / total"}]
+        color = alt.Color("Tipo:N", scale=alt.Scale(domain=["Actividad", "Ruta / total"],
+                                                    range=[COLOR_SERIE_1, COLOR_SERIE_2]),
+                          legend=alt.Legend(orient="bottom", title=None))
+        grafico = barras_horizontales(pd.DataFrame(datos), "Minutos", ".2f", color, "Minutos (promedio)")
+        st.altair_chart(grafico.properties(height=300), width="stretch")
+        st.caption(f"En la última iteración: A = {fila['A']:g}, B = {fila['B']:g}, C = {fila['C']:g}, "
+                   f"D = {fila['D']:.4f}, E = {fila['E']:.4f}, F = {fila['F']:g} → T = {fila['T']:.4f} min.")
+
+    # --- 3 y 4 ---
+    col1, col2 = st.columns(2)
+    with col1.container(border=True):
+        encabezado_tarjeta(3, "Tiempo promedio del proyecto",
+                           f"Promedio de T hasta la iteración {n} (promedio incremental).")
+        st.metric("T promedio", f"{fila['prom_T']:.4f} min")
+        muestra = pd.DataFrame(resultado["muestra"], columns=["Iteración", "T", "Promedio de T"])
+        linea = alt.Chart(muestra).mark_line(strokeWidth=2, color=COLOR_SERIE_2).encode(
+            x="Iteración:Q", y=alt.Y("Promedio de T:Q", scale=alt.Scale(zero=False), title="Promedio de T (min)"),
+            tooltip=["Iteración", alt.Tooltip("Promedio de T:Q", format=".4f")])
+        st.altair_chart(linea.properties(height=230), width="stretch")
+        st.caption("Se ve cómo el promedio se estabiliza a medida que aumentan las iteraciones.")
+
+    with col2.container(border=True):
+        encabezado_tarjeta(4, "Actividades críticas (cuello de botella)",
+                           "Proporción de iteraciones en que cada actividad estuvo en el camino más lento.")
+        datos = pd.DataFrame([{"Nombre": a, "Proporción": fila["prop_crit_" + a],
+                               "Estado": "Crítica la mayoría de las veces" if fila["prop_crit_" + a] >= 0.5
+                               else "Crítica pocas veces"} for a in ACTIVIDADES])
+        color = alt.Color("Estado:N", scale=alt.Scale(
+            domain=["Crítica la mayoría de las veces", "Crítica pocas veces"], range=[COLOR_SERIE_2, COLOR_NEUTRO]),
+            legend=alt.Legend(orient="bottom", title=None))
+        grafico = barras_horizontales(datos, "Proporción", ".2%", color, "Proporción de veces crítica", [0, 1.15])
+        st.altair_chart(grafico.properties(height=230), width="stretch")
+        # Cuello de botella: la de mayor proporción sin contar F (F está en las dos rutas, siempre es crítica)
+        sin_f = [a for a in ACTIVIDADES if a != "F"]
+        mayor = max(fila["prop_crit_" + a] for a in sin_f)
+        cuellos = ", ".join(a for a in sin_f if fila["prop_crit_" + a] == mayor)
+        rama = "Ruta 1 (A → B)" if fila["prop_ruta1"] >= fila["prop_ruta2"] else "Ruta 2 (C → D → E)"
+        st.markdown(f"**Cuello de botella: {cuellos}** ({mayor:.2%} de las veces). "
+                    f"La rama que más veces define el tiempo es **{rama}**. "
+                    f"F es crítica siempre porque está en las dos rutas.")
+        st.caption(f"Ruta 1 crítica: {fila['prop_ruta1']:.2%} · Ruta 2: {fila['prop_ruta2']:.2%} · "
+                   f"Empate: {fila['prop_empate']:.2%}")
+
+    # --- 5, 6 y 7 ---
+    col1, col2, col3 = st.columns(3)
+    with col1.container(border=True):
+        encabezado_tarjeta(5, f"Tiempo a fijar con {p['confianza']:.0%} de confianza",
+                           f"Simulando {p['n_percentil']} veces, ¿qué tiempo prometer?")
+        pc = resultado["percentil"]
+        if pc:
+            st.metric("Tiempo a fijar", f"{pc['valor']:.4f} min")
+            st.markdown(f"Se ordenan las primeras {pc['n']} duraciones y se toma la posición "
+                        f"**i = {pc['posicion']}**, porque F(i) = i/(n+1) = {pc['posicion']}/{pc['n'] + 1} "
+                        f"= {pc['posicion'] / (pc['n'] + 1):.2f}.")
+            st.success(f"El {p['confianza']:.0%} de los pedidos se despachan en {pc['valor']:.4f} min o menos.")
+        else:
+            st.info(f"Hacen falta al menos {p['n_percentil']} iteraciones (hay {n}).")
+
+    with col2.container(border=True):
+        encabezado_tarjeta(6, f"P(T ≤ {p['umbral_menor']:g} min)",
+                           f"Probabilidad de terminar en {p['umbral_menor']:g} minutos o menos.")
+        st.metric("Probabilidad", f"{fila['prob_menor']:.2%}")
+        st.progress(min(max(fila["prob_menor"], 0.0), 1.0))
+        st.caption(f"{fila['cont_menor']} de {n} iteraciones terminaron en ≤ {p['umbral_menor']:g} min.")
+
+    with col3.container(border=True):
+        encabezado_tarjeta(7, f"P(T ≥ {p['umbral_mayor']:g} min)",
+                           f"Probabilidad de terminar en {p['umbral_mayor']:g} minutos o más.")
+        st.metric("Probabilidad", f"{fila['prob_mayor']:.2%}")
+        st.progress(min(max(fila["prob_mayor"], 0.0), 1.0))
+        st.caption(f"{fila['cont_mayor']} de {n} iteraciones terminaron en ≥ {p['umbral_mayor']:g} min.")
+
+    # --- 8 ---
+    with st.container(border=True):
+        encabezado_tarjeta(8, "Distribución de frecuencias (10 intervalos)",
+                           f"Desde Tmin = {resultado['t_min_teorico']:g}, 9 intervalos de "
+                           f"{resultado['ancho_intervalo']:g} min y el último desde Tmin + "
+                           f"{p['desplazamiento_ultimo']:g} = "
+                           f"{resultado['t_min_teorico'] + p['desplazamiento_ultimo']:g} en adelante. "
+                           f"N observaciones = {resultado['n_frecuencias']}.")
+        frecuencias = resultado["frecuencias"]
+        datos = pd.DataFrame([{
+            "Intervalo": ("[" f"{f['desde']:g}, " + ("∞)" if math.isinf(f["hasta"]) else f"{f['hasta']:g})")),
+            "FO": f["fo"], "FR": f["fr"]} for f in frecuencias])
+        base = alt.Chart(datos).encode(x=alt.X("Intervalo:N", sort=None, axis=alt.Axis(labelAngle=0), title=None))
+        barras = base.mark_bar(color=COLOR_SERIE_1, cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            y=alt.Y("FO:Q", title="Frecuencia observada"),
+            tooltip=["Intervalo", "FO", alt.Tooltip("FR:Q", format=".2%")])
+        etiquetas = base.mark_text(dy=-8).encode(y="FO:Q", text=alt.Text("FR:Q", format=".1%"))
+        c_grafico, c_tabla = st.columns([3, 2])
+        c_grafico.altair_chart((barras + etiquetas).properties(height=320), width="stretch")
+        c_tabla.dataframe(pd.DataFrame([{
+            "Intervalo": fila_tabla["Intervalo"], "FO": fila_tabla["FO"],
+            "FR": f"{fila_tabla['FR']:.4f}"} for _, fila_tabla in datos.iterrows()]),
+            hide_index=True, width="stretch")
+        c_tabla.caption(f"Suma FO = {sum(f['fo'] for f in frecuencias)}")
+
+
+# ---------------------------------------------------------------------------
 # Página
 # ---------------------------------------------------------------------------
 
@@ -328,7 +507,7 @@ if "resultado" in st.session_state:
     if "consulta" in st.session_state:
         consulta = st.session_state["consulta"]
         mostrar_estimadores(consulta["ultima_fila"], consulta, p_usado)
-        mostrar_vector([consulta["ultima_fila"]], p_usado, altura=140)
+        mostrar_vector([consulta["ultima_fila"]], p_usado, altura="none")
 
     st.header("Tablas de probabilidad acumulada")
     c1, c2 = st.columns(2)
@@ -348,3 +527,16 @@ if "resultado" in st.session_state:
 
     with st.expander("Traza de las 3 primeras iteraciones (para verificar a mano)"):
         st.markdown(traza_primeras_iteraciones(p_usado))
+
+    st.divider()
+    st.header("Respuestas a la consigna")
+    respuesta = resultado
+    if "consulta" in st.session_state:
+        k_consultado = st.session_state["consulta"]["ultima_fila"]["n"]
+        opcion = st.radio("Responder con los valores de…",
+                          [f"la última iteración ({ultima['n']})", f"la iteración consultada ({k_consultado})"],
+                          horizontal=True)
+        if opcion.startswith("la iteración consultada"):
+            respuesta = st.session_state["consulta"]
+    st.caption(f"Todos los valores corresponden a la iteración n = {respuesta['ultima_fila']['n']}.")
+    mostrar_respuestas(respuesta, p_usado)
