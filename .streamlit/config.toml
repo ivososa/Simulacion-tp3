@@ -1,0 +1,26 @@
+# Tema visual de la app: paleta de azules, siempre claro para que los contrastes estén controlados.
+[theme]
+base = "light"
+primaryColor = "#1d5fbf"
+backgroundColor = "#f3f6fb"
+secondaryBackgroundColor = "#e6eef8"
+textColor = "#10233f"
+linkColor = "#1d5fbf"
+borderColor = "#c8d6ea"
+dataframeHeaderBackgroundColor = "#dde8f6"
+showWidgetBorder = true
+baseRadius = "8px"
+headingFontWeights = [700, 700, 650, 650, 600, 600]
+chartCategoricalColors = ["#1d5fbf", "#3b9fdc", "#6a5acd"]
+
+# Barra lateral de parámetros: azul marino con texto claro.
+[theme.sidebar]
+backgroundColor = "#0b2545"
+secondaryBackgroundColor = "#17385f"
+textColor = "#eef4fb"
+primaryColor = "#5fb3e8"
+borderColor = "#2d4f7c"
+dataframeHeaderBackgroundColor = "#1d406e"
+
+[browser]
+gatherUsageStats = false
