@@ -56,7 +56,7 @@ numpy, pandas ni `random`. Todos los números aleatorios salen de nuestro genera
 ### Parámetros (todos configurables desde la interfaz)
 
 - **Generadores** (uno por variable aleatoria: B, D, E, F): semilla X0, a, c, m. Prueba: 3922, 1221, 1714, m = legajo.
-- **Conversión X → RND** (`X/m` por defecto) y decimales para truncar el RND.
+- **Conversión X → RND de cada generador** (D: `X/(m−1)`; B, E y F: `X/m`) y decimales para truncar el RND.
 - **Distribuciones**: valor de A y C; tablas valor/probabilidad de B y F (se pueden agregar filas); a y b de D; media de E.
 - **Simulación**: cantidad de iteraciones N, desde qué iteración j mostrar, cuántas filas i.
 - **Estimadores**: n para el percentil (99), confianza (0.95), umbrales 60 y 90, desplazamiento del último intervalo (90), N observaciones para la distribución de frecuencias.
@@ -83,8 +83,15 @@ X(n+1) = (a · X(n) + c) mod m
 
 La semilla X0 **no** es un número aleatorio: el primer RND sale de X1.
 
-**Conversión a RND** (por defecto `RND = X / m`, entonces RND ∈ [0, 1) y nunca vale 1).
-Opciones: `X/(m−1)` ∈ [0, 1] y `(X+0.5)/m` ∈ (0, 1).
+**Conversión a RND**: cada generador tiene la suya (configurable desde la interfaz).
+
+| Variable | Conversión | Rango del RND | Por qué |
+|---|---|---|---|
+| B, F (discretas) | `RND = X / m` | [0, 1) | El RND cae en intervalos `[desde, hasta)` con `hasta ≤ 1` |
+| D (uniforme) | `RND = X / (m − 1)` | [0, 1] | El RND puede valer 0 y 1, así D puede tomar los dos extremos de U[a, b] |
+| E (exponencial) | `RND = X / m` | [0, 1) | Con RND = 1 sería `ln(1 − 1) = ln(0)`, que no existe |
+
+Otra opción disponible: `(X+0.5)/m` ∈ (0, 1).
 Truncado a k decimales: `RND = trunc(RND · 10^k) / 10^k`, calculado con división entera para
 evitar errores de redondeo de los float.
 
@@ -174,52 +181,52 @@ _Generada con `python generar_traza.py 12345` (semilla 3922, a 1221, c 1714, m =
 #### Iteración 1
 
 - **B**: X1 = (1221 · 3922 + 1714) mod 12345 = **616** → RND = X/m = **0.0499**
-- **D**: X1 = (1221 · 3922 + 1714) mod 12345 = **616** → RND = X/m = **0.0499**
+- **D**: X1 = (1221 · 3922 + 1714) mod 12345 = **616** → RND = X/(m-1) = **0.0499**
 - **E**: X1 = (1221 · 3922 + 1714) mod 12345 = **616** → RND = X/m = **0.0499**
 - **F**: X1 = (1221 · 3922 + 1714) mod 12345 = **616** → RND = X/m = **0.0499**
 
 - A = 15 (constante), C = 5 (constante)
 - B: RND 0.0499 cae en la tabla acumulada → **B = 20**
-- D = 5 + (25 − 5) · 0.0499 = **5.9980**
+- D = 5 + (25 − 5) · 0.0499 = **5.9981**
 - E = −5 · ln(1 − 0.0499) = **0.2559**
 - F: RND 0.0499 → montacargas Libre → **F = 15**
-- finB = 15 + 20 = 35.0000 ; finE = 5 + 5.9980 + 0.2559 = 11.2539
-- inicioF = max(35.0000, 11.2539) = 35.0000 ; **T = 35.0000 + 15 = 50.0000**
-- Ruta1 = 50.0000, Ruta2 = 26.2539 → Ruta 1 es la crítica → críticas: A, B, F
+- finB = 15 + 20 = 35.0000 ; finE = 5 + 5.9981 + 0.2559 = 11.2540
+- inicioF = max(35.0000, 11.2540) = 35.0000 ; **T = 35.0000 + 15 = 50.0000**
+- Ruta1 = 50.0000, Ruta2 = 26.2540 → Ruta 1 es la crítica → críticas: A, B, F
 - Promedio de T hasta acá = 50.0000
 
 #### Iteración 2
 
 - **B**: X2 = (1221 · 616 + 1714) mod 12345 = **805** → RND = X/m = **0.0652**
-- **D**: X2 = (1221 · 616 + 1714) mod 12345 = **805** → RND = X/m = **0.0652**
+- **D**: X2 = (1221 · 616 + 1714) mod 12345 = **805** → RND = X/(m-1) = **0.0652**
 - **E**: X2 = (1221 · 616 + 1714) mod 12345 = **805** → RND = X/m = **0.0652**
 - **F**: X2 = (1221 · 616 + 1714) mod 12345 = **805** → RND = X/m = **0.0652**
 
 - A = 15 (constante), C = 5 (constante)
 - B: RND 0.0652 cae en la tabla acumulada → **B = 20**
-- D = 5 + (25 − 5) · 0.0652 = **6.3042**
+- D = 5 + (25 − 5) · 0.0652 = **6.3043**
 - E = −5 · ln(1 − 0.0652) = **0.3372**
 - F: RND 0.0652 → montacargas Libre → **F = 15**
-- finB = 15 + 20 = 35.0000 ; finE = 5 + 6.3042 + 0.3372 = 11.6413
-- inicioF = max(35.0000, 11.6413) = 35.0000 ; **T = 35.0000 + 15 = 50.0000**
-- Ruta1 = 50.0000, Ruta2 = 26.6413 → Ruta 1 es la crítica → críticas: A, B, F
+- finB = 15 + 20 = 35.0000 ; finE = 5 + 6.3043 + 0.3372 = 11.6414
+- inicioF = max(35.0000, 11.6414) = 35.0000 ; **T = 35.0000 + 15 = 50.0000**
+- Ruta1 = 50.0000, Ruta2 = 26.6414 → Ruta 1 es la crítica → críticas: A, B, F
 - Promedio de T hasta acá = 50.0000
 
 #### Iteración 3
 
 - **B**: X3 = (1221 · 805 + 1714) mod 12345 = **9364** → RND = X/m = **0.7585**
-- **D**: X3 = (1221 · 805 + 1714) mod 12345 = **9364** → RND = X/m = **0.7585**
+- **D**: X3 = (1221 · 805 + 1714) mod 12345 = **9364** → RND = X/(m-1) = **0.7586**
 - **E**: X3 = (1221 · 805 + 1714) mod 12345 = **9364** → RND = X/m = **0.7585**
 - **F**: X3 = (1221 · 805 + 1714) mod 12345 = **9364** → RND = X/m = **0.7585**
 
 - A = 15 (constante), C = 5 (constante)
 - B: RND 0.7585 cae en la tabla acumulada → **B = 40**
-- D = 5 + (25 − 5) · 0.7585 = **20.1705**
+- D = 5 + (25 − 5) · 0.7586 = **20.1717**
 - E = −5 · ln(1 − 0.7585) = **7.1050**
 - F: RND 0.7585 → montacargas Ocupado → **F = 25**
-- finB = 15 + 40 = 55.0000 ; finE = 5 + 20.1705 + 7.1050 = 32.2755
-- inicioF = max(55.0000, 32.2755) = 55.0000 ; **T = 55.0000 + 25 = 80.0000**
-- Ruta1 = 80.0000, Ruta2 = 57.2755 → Ruta 1 es la crítica → críticas: A, B, F
+- finB = 15 + 40 = 55.0000 ; finE = 5 + 20.1717 + 7.1050 = 32.2767
+- inicioF = max(55.0000, 32.2767) = 55.0000 ; **T = 55.0000 + 25 = 80.0000**
+- Ruta1 = 80.0000, Ruta2 = 57.2767 → Ruta 1 es la crítica → críticas: A, B, F
 - Promedio de T hasta acá = 60.0000
 
 <!-- TRAZA:FIN -->
@@ -228,7 +235,7 @@ _Generada con `python generar_traza.py 12345` (semilla 3922, a 1221, c 1714, m =
 
 ## 7. Supuestos e interpretaciones (para confirmar con el profe)
 
-1. **Conversión del RND**: `X/m`, que da RND ∈ [0, 1). Así `ln(1 − RND)` nunca es ln(0). Se puede cambiar desde la interfaz.
+1. **Conversión del RND por generador**: D (uniforme continua) usa `X/(m−1)`, así el RND puede valer 0 y 1 y D cubre todo [a, b]. B, F y E usan `X/m` (RND ∈ [0, 1)); en E esto evita ln(0). Con X/m, D llegaría como máximo a b − (b−a)/m (24,9984 con m = 12345); como D es continua, la diferencia no cambia la distribución, pero así se respeta el intervalo cerrado. Se puede cambiar desde la interfaz.
 2. **"Tiempo mínimo"** = mínimo teórico con el mínimo de cada distribución (50 min). Se reporta aparte el mínimo observado.
 3. **Empate de rutas**: las dos ramas se consideran críticas (las 6 actividades).
 4. **Tiempo con 95 % de confianza**: se calcula con las **primeras 99 iteraciones** y `F(i) = i/(n+1)`, que da la posición 95.

@@ -105,13 +105,13 @@ def fila_inicial():
 
 
 def preparar(p):
-    """Crea los 4 generadores (uno por variable) y las tablas acumuladas de B y F."""
+    """Crea los 4 generadores (uno por variable, cada uno con su conversión) y las tablas de B y F."""
     generadores = {}
     for variable in VARIABLES_ALEATORIAS:
         g = p["generadores"][variable]
         generadores[variable] = GeneradorCongruencialMixto(
             g["semilla"], g["a"], g["c"], g["m"],
-            conversion=p["conversion"], decimales=p["decimales_rnd"])
+            conversion=g["conversion"], decimales=p["decimales_rnd"])
     tabla_b = armar_tabla_acumulada(p["B"])
     tabla_f = armar_tabla_acumulada(p["F"])
     return generadores, tabla_b, tabla_f
@@ -284,7 +284,7 @@ def traza_primeras_iteraciones(p, cantidad=3):
             g = p["generadores"][v]
             x, rnd = actual[v + "_x"], actual[v + "_rnd"]
             lineas.append(f"- **{v}**: X{n} = ({g['a']} · {x_previo[v]} + {g['c']}) mod {g['m']} = "
-                          f"**{x}** → RND = {p['conversion']} = **{rnd:.4f}**")
+                          f"**{x}** → RND = {g['conversion']} = **{rnd:.4f}**")
             x_previo[v] = x
         d, e = p["D"], p["E"]
         lineas.append("")

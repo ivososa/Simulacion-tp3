@@ -134,7 +134,7 @@ def test_consulta_en_iteracion_k_coincide_con_la_fila_k():
 def test_generadores_identicos_advierten_pero_no_bloquean():
     errores, advertencias = validar(parametros_prueba())
     assert errores == []
-    assert any("mismos parámetros" in a for a in advertencias)
+    assert any("misma semilla, a, c y m" in a for a in advertencias)
 
 
 def test_sin_legajo_no_se_puede_simular():
@@ -155,3 +155,26 @@ def test_periodo_del_generador():
     assert calcular_periodo(7, 5, 3, 16) == 16
     # Con los valores de prueba y m = 12345, el período es mucho menor que m
     assert calcular_periodo(3922, 1221, 1714, 12345) == 2055
+
+
+def test_solo_d_usa_x_sobre_m_menos_1():
+    from simulacion import preparar
+    generadores, _, _ = preparar(parametros_prueba())
+    assert generadores["D"].conversion == "X/(m-1)"
+    assert all(generadores[v].conversion == "X/m" for v in ("B", "E", "F"))
+
+
+def test_d_con_x_sobre_m_menos_1_puede_llegar_a_los_dos_extremos():
+    # X = m - 1 da RND = 1 -> D = b ; X = 0 da RND = 0 -> D = a
+    g = GeneradorCongruencialMixto(0, 1, 9, 10, conversion="X/(m-1)")
+    _, rnd = g.siguiente()          # X1 = (1*0 + 9) mod 10 = 9
+    assert rnd == 1 and uniforme(rnd, 5, 25) == 25
+    g = GeneradorCongruencialMixto(0, 1, 0, 10, conversion="X/(m-1)")
+    _, rnd = g.siguiente()          # X1 = 0
+    assert rnd == 0 and uniforme(rnd, 5, 25) == 5
+
+
+def test_rnd_de_d_en_la_simulacion_usa_x_sobre_m_menos_1():
+    fila = simular(parametros_prueba(iteraciones=1, cantidad_filas=1))["filas_visibles"][0]
+    assert fila["D_rnd"] == fila["D_x"] / (M - 1)
+    assert fila["B_rnd"] == fila["B_x"] / M

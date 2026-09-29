@@ -15,13 +15,26 @@ LEGAJO_EJEMPLO = 12345
 LIMITE_CALCULO_PERIODO = 1_000_000
 
 VARIABLES_ALEATORIAS = ["B", "D", "E", "F"]   # las que tienen generador propio
+CAMPOS_NUMERICOS_GENERADOR = ["semilla", "a", "c", "m"]
+
+# Conversión X -> RND de cada generador:
+# - D (uniforme continua) usa X/(m-1) para que el RND pueda valer 0 y 1 y D cubra todo [a, b].
+# - B y F (discretas) usan X/m: el RND tiene que caer en intervalos [desde, hasta) con hasta <= 1.
+# - E (exponencial) usa X/m: con RND = 1 sería ln(1 - 1) = ln(0), que no existe.
+CONVERSION_POR_DEFECTO = {
+    "B": CONVERSION_X_SOBRE_M,
+    "D": CONVERSION_X_SOBRE_M_MENOS_1,
+    "E": CONVERSION_X_SOBRE_M,
+    "F": CONVERSION_X_SOBRE_M,
+}
 TOLERANCIA_PROBABILIDADES = 1e-9
 
 
 def parametros_por_defecto(legajo=None):
     """Datos de la consigna. m = legajo (si es None, no se puede simular)."""
-    def generador_de_prueba():
-        return {"semilla": 3922, "a": 1221, "c": 1714, "m": legajo}
+    def generador_de_prueba(variable):
+        return {"semilla": 3922, "a": 1221, "c": 1714, "m": legajo,
+                "conversion": CONVERSION_POR_DEFECTO[variable]}
 
     return {
         # Simulación
@@ -29,9 +42,8 @@ def parametros_por_defecto(legajo=None):
         "desde": 1,                 # mostrar desde la iteración j
         "cantidad_filas": 20,       # cantidad i de filas a mostrar
         "decimales_rnd": None,      # None = sin truncar
-        "conversion": CONVERSION_X_SOBRE_M,
-        # Un generador independiente por variable aleatoria
-        "generadores": {v: generador_de_prueba() for v in VARIABLES_ALEATORIAS},
+        # Un generador independiente por variable aleatoria (cada uno con su conversión)
+        "generadores": {v: generador_de_prueba(v) for v in VARIABLES_ALEATORIAS},
         # Distribuciones
         "A": 15,
         "B": [
@@ -78,8 +90,6 @@ def validar(p):
         errores.append("La cantidad de filas a mostrar tiene que ser un entero ≥ 0.")
     if p["decimales_rnd"] is not None and (not es_entero(p["decimales_rnd"]) or p["decimales_rnd"] < 1):
         errores.append("Los decimales del RND tienen que ser un entero ≥ 1 (o vacío para no truncar).")
-    if p["conversion"] not in CONVERSIONES:
-        errores.append(f"Conversión del RND desconocida: {p['conversion']}")
 
     # --- Generadores ---
     for variable in VARIABLES_ALEATORIAS:
@@ -88,7 +98,7 @@ def validar(p):
         if g["m"] is None:
             errores.append(f"{nombre}: falta cargar m (número de legajo).")
             continue
-        if not all(es_entero(g[k]) for k in ("semilla", "a", "c", "m")):
+        if not all(es_entero(g[k]) for k in CAMPOS_NUMERICOS_GENERADOR):
             errores.append(f"{nombre}: semilla, a, c y m tienen que ser enteros.")
             continue
         if g["m"] <= 0:
@@ -99,7 +109,9 @@ def validar(p):
             errores.append(f"{nombre}: c tiene que ser ≥ 0.")
         if g["semilla"] < 0:
             errores.append(f"{nombre}: la semilla tiene que ser ≥ 0.")
-        if p["conversion"] == CONVERSION_X_SOBRE_M_MENOS_1 and g["m"] <= 1:
+        if g["conversion"] not in CONVERSIONES:
+            errores.append(f"{nombre}: conversión del RND desconocida: {g['conversion']}")
+        if g["conversion"] == CONVERSION_X_SOBRE_M_MENOS_1 and g["m"] <= 1:
             errores.append(f"{nombre}: con la conversión X/(m-1), m tiene que ser > 1.")
         if es_entero(p["iteraciones"]) and g["m"] > 0 and g["a"] > 0 and g["c"] >= 0 and g["semilla"] >= 0:
             if g["m"] <= LIMITE_CALCULO_PERIODO:
@@ -113,16 +125,18 @@ def validar(p):
                     f"{nombre}: se piden {p['iteraciones']} iteraciones y m = {g['m']}. "
                     f"El período es como máximo m, así que los números se van a repetir.")
 
-    gens = [p["generadores"][v] for v in VARIABLES_ALEATORIAS]
+    # Se comparan solo semilla, a, c y m: si coinciden, los 4 generan la misma secuencia de X
+    # (aunque D convierta distinto, su RND sale del mismo X).
+    gens = [[p["generadores"][v][k] for k in CAMPOS_NUMERICOS_GENERADOR] for v in VARIABLES_ALEATORIAS]
     if all(g == gens[0] for g in gens):
         advertencias.append(
-            "Los 4 generadores tienen los mismos parámetros: B, D, E y F reciben el MISMO RND "
-            "en cada iteración (quedan correlacionadas). Se simula igual.")
+            "Los 4 generadores tienen la misma semilla, a, c y m: B, D, E y F usan la MISMA secuencia "
+            "de X en cada iteración (quedan correlacionadas). Se simula igual.")
 
-    if p["conversion"] == CONVERSION_X_SOBRE_M_MENOS_1:
+    if p["generadores"]["E"]["conversion"] == CONVERSION_X_SOBRE_M_MENOS_1:
         advertencias.append(
-            "Con X/(m-1) el RND puede valer 1. Si le toca a la exponencial (E), ln(0) no existe "
-            "y la simulación se detiene en esa iteración.")
+            "E (exponencial) usa X/(m-1): el RND puede valer 1 y ln(1 - 1) = ln(0) no existe. "
+            "Si pasa, la simulación se detiene en esa iteración. Conviene usar X/m para E.")
 
     # --- Distribuciones ---
     for variable in ("A", "C"):

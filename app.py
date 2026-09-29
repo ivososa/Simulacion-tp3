@@ -32,11 +32,13 @@ DEFECTO = parametros_por_defecto()
 CAMPOS_GENERADOR = ["semilla", "a", "c", "m"]
 
 for variable in VARIABLES_ALEATORIAS:
-    for campo in CAMPOS_GENERADOR:
+    for campo in CAMPOS_GENERADOR + ["conversion"]:
         st.session_state.setdefault(f"gen_{variable}_{campo}", DEFECTO["generadores"][variable][campo])
 
 
 def copiar_generador_b():
+    # Copia semilla, a, c y m. La conversión NO se copia: cada variable conserva la suya
+    # (D usa X/(m-1); B, E y F usan X/m).
     for variable in ("D", "E", "F"):
         for campo in CAMPOS_GENERADOR:
             st.session_state[f"gen_{variable}_{campo}"] = st.session_state[f"gen_B_{campo}"]
@@ -68,10 +70,10 @@ def leer_parametros():
     p["cantidad_filas"] = sb.number_input("Cantidad de filas i a mostrar", min_value=0, value=DEFECTO["cantidad_filas"], step=1)
     p["decimales_rnd"] = sb.number_input("Decimales del RND (truncar)", min_value=1, max_value=12, value=None,
                                          step=1, placeholder="sin truncar")
-    p["conversion"] = sb.selectbox("Conversión X → RND", CONVERSIONES, index=0)
 
     sb.subheader("Generadores", divider="blue")
-    sb.caption("X(n+1) = (a·X(n) + c) mod m — uno por variable aleatoria. m = número de legajo.")
+    sb.caption("X(n+1) = (a·X(n) + c) mod m — uno por variable aleatoria. m = número de legajo. "
+               "D usa X/(m-1) (el RND puede valer 0 y 1); B, E y F usan X/m.")
     sb.button("Copiar parámetros del generador de B a todos", on_click=copiar_generador_b, width="stretch")
     for variable in VARIABLES_ALEATORIAS:
         with sb.expander(f"Generador de {variable}", expanded=(variable == "B")):
@@ -80,6 +82,8 @@ def leer_parametros():
                                     ("c", "c (aditiva)"), ("m", "m (legajo)")]:
                 generador[campo] = st.number_input(etiqueta, min_value=0, step=1, key=f"gen_{variable}_{campo}",
                                                    placeholder="Nº de legajo" if campo == "m" else None)
+            generador["conversion"] = st.selectbox("Conversión X → RND", CONVERSIONES,
+                                                   key=f"gen_{variable}_conversion")
             p["generadores"][variable] = generador
 
     sb.subheader("Distribuciones", divider="blue")
