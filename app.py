@@ -44,6 +44,49 @@ def copiar_generador_b():
             st.session_state[f"gen_{variable}_{campo}"] = st.session_state[f"gen_B_{campo}"]
 
 
+# ---------------------------------------------------------------------------
+# Popup del legajo: aparece al abrir la página y al recargarla
+# (recargar crea una sesión nueva, donde "legajo_preguntado" todavía no existe)
+# ---------------------------------------------------------------------------
+
+if "legajo_pendiente" in st.session_state:
+    # Se aplica ANTES de dibujar los campos m: Streamlit no deja cambiar
+    # un campo que ya se dibujó en esta misma ejecución.
+    legajo_confirmado = st.session_state.pop("legajo_pendiente")
+    for variable in VARIABLES_ALEATORIAS:
+        st.session_state[f"gen_{variable}_m"] = legajo_confirmado
+
+
+@st.dialog("Número de legajo", dismissible=False)
+def pedir_legajo():
+    st.markdown("Se usa como **módulo m** en los generadores de B, D, E y F.")
+    # Dentro de un formulario, apretar Enter en el campo equivale a tocar "Confirmar".
+    # "Confirmar" es el ÚNICO botón del formulario: si Cancelar también lo fuera,
+    # Enter dispararía el primero que aparece en pantalla.
+    with st.form("form_legajo", border=False):
+        legajo = st.number_input("Legajo", min_value=1, step=1, value=None, placeholder="Nº de legajo")
+        confirmar = st.form_submit_button("Confirmar  ⏎", type="primary", width="stretch")
+    if st.button("Cancelar", width="stretch"):
+        st.session_state["legajo_preguntado"] = True
+        st.rerun()
+    st.caption("Cancelar deja los campos m como están, para cargar valores distintos a mano.")
+    if confirmar:
+        if legajo is None:
+            st.error("Ingresá un número de legajo o tocá Cancelar.")
+        else:
+            st.session_state["legajo_pendiente"] = int(legajo)
+            st.session_state["legajo_preguntado"] = True
+            st.rerun()
+
+
+def reabrir_popup_legajo():
+    st.session_state["legajo_preguntado"] = False
+
+
+if not st.session_state.get("legajo_preguntado"):
+    pedir_legajo()
+
+
 def tabla_editable_a_filas(df):
     """Convierte la tabla editada en la interfaz a la lista de dicts que usa el motor."""
     filas = []
@@ -74,6 +117,7 @@ def leer_parametros():
     sb.subheader("Generadores", divider="blue")
     sb.caption("X(n+1) = (a·X(n) + c) mod m — uno por variable aleatoria. m = número de legajo. "
                "D usa X/(m-1) (el RND puede valer 0 y 1); B, E y F usan X/m.")
+    sb.button("Cargar legajo en todos los m", on_click=reabrir_popup_legajo, width="stretch")
     sb.button("Copiar parámetros del generador de B a todos", on_click=copiar_generador_b, width="stretch")
     for variable in VARIABLES_ALEATORIAS:
         with sb.expander(f"Generador de {variable}", expanded=(variable == "B")):

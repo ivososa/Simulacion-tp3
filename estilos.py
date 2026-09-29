@@ -31,6 +31,10 @@ CSS = f"""
 .hero-chip {{ background: rgba(255,255,255,.14); color: #ffffff; border: 1px solid rgba(255,255,255,.35);
   border-radius: 999px; padding: 3px 12px; font-size: .8rem; }}
 
+/* ---------- Popup (st.dialog) centrado en la pantalla ---------- */
+[data-testid="stDialog"] {{ align-items: center !important; padding-top: 0 !important; }}
+[data-testid="stDialog"] > div {{ margin-top: 0 !important; }}
+
 /* ---------- Tarjetas (st.container con key "caja_...") ---------- */
 [class*="st-key-caja"] {{ background: {FONDO_TARJETA}; border-radius: 12px !important;
   box-shadow: 0 1px 3px rgba(11,37,69,.08); }}
